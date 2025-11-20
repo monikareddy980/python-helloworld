@@ -36,3 +36,40 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           # This token needs to be created in your SonarQube server and stored in GitHub Secrets
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Download SonarQube Report
+        run: |
+          # Wait for SonarQube to process the report
+          sleep 10
+          
+          # Get project key from sonar-project.properties
+          PROJECT_KEY=$(grep "sonar.projectKey" sonar-project.properties | cut -d'=' -f2)
+          
+          # Download the report from SonarQube
+          curl -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/issues/search?componentKeys=${PROJECT_KEY}&ps=500&facets=severities,types" \
+            -o sonarqube-issues.json
+          
+          # Download metrics
+          curl -u "${{ secrets.SONAR_TOKEN }}:" \
+            "${{ secrets.SONAR_HOST_URL }}/api/measures/component?component=${PROJECT_KEY}&metricKeys=bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density,sqale_rating,reliability_rating,security_rating" \
+            -o sonarqube-metrics.json
+          
+          # Create a summary report
+          echo "# SonarQube Analysis Report" > sonarqube-report.md
+          echo "Project: ${PROJECT_KEY}" >> sonarqube-report.md
+          echo "Date: $(date)" >> sonarqube-report.md
+          echo "" >> sonarqube-report.md
+          echo "## Reports Generated:" >> sonarqube-report.md
+          echo "- sonarqube-issues.json: Detailed issues report" >> sonarqube-report.md
+          echo "- sonarqube-metrics.json: Quality metrics" >> sonarqube-report.md
+
+      - name: Upload SonarQube Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarqube-reports
+          path: |
+            sonarqube-issues.json
+            sonarqube-metrics.json
+            sonarqube-report.md
+          retention-days: 30
